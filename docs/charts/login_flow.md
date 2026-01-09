@@ -12,20 +12,20 @@ The following flowchart illustrates the complete login workflow from initial cre
 
 ```mermaid
 flowchart TD
-    A[Start Login Process] --> B[Instaloader login method]
-    B --> C[InstaloaderContext login method]
-    C --> D[Create new requests.Session]
+    A[Start Login Process] --> B["Instaloader.login() [instaloader.py]"]
+    B --> C["InstaloaderContext.login() [instaloadercontext.py]"]
+    C --> D["Create requests.Session()"]
     D --> E[Initialize session cookies]
-    E --> F[Set default HTTP headers]
+    E --> F["Set default HTTP headers<br/>_default_http_header() [instaloadercontext.py]"]
     F --> G[GET request to instagram.com]
     G --> H[Extract CSRF token from cookies]
     H --> I[Add CSRF token to session headers]
-    I --> J[Sleep for a while]
-    J --> K[Encrypt password with timestamp]
-    K --> L[POST login request to login endpoint]
-    L --> M{Parse JSON response}
+    I --> J["Sleep for a while<br/>do_sleep() [instaloadercontext.py]"]
+    J --> K[Encrypt password<br/>#PWD_INSTAGRAM_BROWSER format]
+    K --> L[POST login request to<br/>/api/v1/web/accounts/login/ajax/]
+    L --> M[Parse JSON response]
     M --> N{Two-factor auth required?}
-    N -->|Yes| O[Set up two-factor auth pending]
+    N -->|Yes| O["Set up two-factor auth pending<br/>copy_session() [instaloadercontext.py]"]
     O --> P[Raise TwoFactorAuthRequiredException]
     N -->|No| Q{Checkpoint required?}
     Q -->|Yes| R[Raise LoginException with checkpoint URL]
@@ -36,7 +36,7 @@ flowchart TD
     V -->|No| W[Raise LoginException - User missing]
     V -->|Yes| X[Raise BadCredentialsException - Wrong pwd]
     U -->|Yes| Y[Update session headers]
-    Y --> Z[Set context session and user info]
+    Y --> Z[Set context session and user info<br/>self._session, self.username, self.user_id]
     Z --> AB[Login Successful]
 
     style A fill:#FFE4B5,stroke:#333
@@ -69,7 +69,28 @@ flowchart TD
 
 7. **Session Storage**: Upon successful authentication, stores the session object, username, and user ID in the `InstaloaderContext` for subsequent API requests.
 
-## Session Persistence
+## Two-Factor Authentication
+
+```mermaid
+flowchart TD
+    A[Two-Factor Authentication] --> B["Instaloader.two_factor_login() [instaloader.py]"]
+    B --> C["InstaloaderContext.two_factor_login() [instaloadercontext.py]"]
+    C --> D{Two-factor auth pending?}
+    D -->|No| E[Raise InvalidArgumentException]
+    D -->|Yes| F[POST to /accounts/login/ajax/two_factor/]
+    F --> G[Parse JSON response]
+    G --> H{Status OK?}
+    H -->|No| I[Raise BadCredentialsException]
+    H -->|Yes| J[Update session headers]
+    J --> K[Set context session and user info]
+    K --> L[Clear two_factor_auth_pending]
+    L --> M[2FA Login Successful]
+
+    style A fill:#FFE4B5,stroke:#333
+    style M fill:#90EE90,stroke:#333
+    style E fill:#FFB6C1,stroke:#333
+    style I fill:#FFB6C1,stroke:#333
+```
 
 ## Session Persistence
 
@@ -105,6 +126,19 @@ flowchart TD
 
 ### Session Saving Process
 
+```mermaid
+flowchart TD
+    A[Save Session To File] --> B["Instaloader.save_session_to_file() [instaloader.py]"]
+    B --> C["InstaloaderContext.save_session_to_file() [instaloadercontext.py]"]
+    C --> D["InstaloaderContext.save_session() [instaloadercontext.py]"]
+    D --> E["Extract cookies from session<br/>dict_from_cookiejar()"]
+    E --> F["Pickle and save to file<br/>pickle.dump()"]
+    F --> G[Session Saved Successfully]
+
+    style A fill:#FFE4B5,stroke:#333
+    style G fill:#90EE90,stroke:#333
+```
+
 When saving a session, Instaloader performs the following steps:
 
 1. **Extract Session Data**: Calls `save_session()` which extracts cookies from the active `requests.Session` object using `requests.utils.dict_from_cookiejar()`.
@@ -118,6 +152,21 @@ When saving a session, Instaloader performs the following steps:
    - **Unix/Linux/macOS**: `~/.config/instaloader/session-{username}`
 
 ### Session Loading Process
+
+```mermaid
+flowchart TD
+    A[Load Session From File] --> B["Instaloader.load_session_from_file() [instaloader.py]"]
+    B --> C["InstaloaderContext.load_session_from_file() [instaloadercontext.py]"]
+    C --> D["Load pickled session data<br/>pickle.load()"]
+    D --> E["InstaloaderContext.load_session() [instaloadercontext.py]"]
+    E --> F["Create requests.Session from data<br/>cookiejar_from_dict()"]
+    F --> G[Restore cookies and headers]
+    G --> H[Set context session and username]
+    H --> I[Session Loaded Successfully]
+
+    style A fill:#FFE4B5,stroke:#333
+    style I fill:#90EE90,stroke:#333
+```
 
 When loading a saved session:
 
